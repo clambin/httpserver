@@ -1,0 +1,10 @@
+name: Pull Request
+
+on:
+  pull_request:
+
+jobs:
+  test:
+    uses: clambin/workflows/.github/workflows/test.yaml@main
+  analyse:
+    uses: clambin/workflows/.github/workflows/vulnerabilities.yaml@main
