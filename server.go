@@ -29,7 +29,7 @@ func (s *Server) initialize() (err error) {
 func (s *Server) Run() (err error) {
 	if err = s.initialize(); err == nil {
 		go func() {
-			if err2 := s.ApplicationServer.Run(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if err2 := s.ApplicationServer.Run(); err2 != nil && !errors.Is(err2, http.ErrServerClosed) {
 				panic(err2)
 			}
 		}()
