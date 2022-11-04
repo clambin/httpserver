@@ -1,15 +1,6 @@
 package httpserver
 
-import (
-	"github.com/clambin/httpserver/testtools"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-)
-
+/*
 func TestServer(t *testing.T) {
 	r := prometheus.NewRegistry()
 	requestCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -120,3 +111,4 @@ func TestServer_Default_Metrics(t *testing.T) {
 	}
 	assert.Equal(t, 2, count)
 }
+*/
