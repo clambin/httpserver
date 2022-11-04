@@ -27,7 +27,7 @@ func TestServer(t *testing.T) {
 
 	s := Server{
 		Name: "test",
-		ApplicationServer: ApplicationServer{
+		Application: Application{
 			Handlers: []Handler{{
 				Path: "/foo",
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -48,14 +48,14 @@ func TestServer(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
 	resp := httptest.NewRecorder()
 
-	s.ApplicationServer.server.Handler.ServeHTTP(resp, req)
+	s.Application.server.Handler.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusOK, resp.Code)
 	assert.Equal(t, "OK", resp.Body.String())
 
 	req, _ = http.NewRequest(http.MethodPut, "/foo", nil)
 	resp = httptest.NewRecorder()
 
-	s.ApplicationServer.server.Handler.ServeHTTP(resp, req)
+	s.Application.server.Handler.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
 	metrics, err := r.Gather()
@@ -77,7 +77,7 @@ func TestServer(t *testing.T) {
 func TestServer_Default_Metrics(t *testing.T) {
 	s := Server{
 		Name: "test",
-		ApplicationServer: ApplicationServer{
+		Application: Application{
 			Handlers: []Handler{{
 				Path: "/foo",
 				Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -94,14 +94,14 @@ func TestServer_Default_Metrics(t *testing.T) {
 	req, _ := http.NewRequest(http.MethodGet, "/foo", nil)
 	resp := httptest.NewRecorder()
 
-	s.ApplicationServer.server.Handler.ServeHTTP(resp, req)
+	s.Application.server.Handler.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusOK, resp.Code)
 	assert.Equal(t, "OK", resp.Body.String())
 
 	req, _ = http.NewRequest(http.MethodPut, "/foo", nil)
 	resp = httptest.NewRecorder()
 
-	s.ApplicationServer.server.Handler.ServeHTTP(resp, req)
+	s.Application.server.Handler.ServeHTTP(resp, req)
 	require.Equal(t, http.StatusMethodNotAllowed, resp.Code)
 
 	metrics, err := prometheus.DefaultGatherer.Gather()

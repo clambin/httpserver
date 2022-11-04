@@ -30,7 +30,7 @@ func TestServer_Run(t *testing.T) {
 
 	s := httpserver.Server{
 		Name: "test",
-		ApplicationServer: httpserver.ApplicationServer{
+		Application: httpserver.Application{
 			Handlers: []httpserver.Handler{
 				{
 					Path: "/foo",
@@ -62,7 +62,7 @@ func TestServer_Run(t *testing.T) {
 		return err == nil && resp.StatusCode == http.StatusOK
 	}, time.Second, 10*time.Millisecond)
 
-	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/foo", s.ApplicationServer.GetPort()))
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/foo", s.Application.GetPort()))
 	assert.NoError(t, err)
 	_ = resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)

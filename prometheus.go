@@ -10,10 +10,10 @@ import (
 	"time"
 )
 
-// Prometheus contains the different Prometheus configuration options
+// Prometheus runs a Prometheus metrics server
 type Prometheus struct {
 	Path string
-	BaseServer
+	HTTPServer
 }
 
 func (p *Prometheus) initialize() (err error) {
@@ -22,17 +22,22 @@ func (p *Prometheus) initialize() (err error) {
 	}
 	r := mux.NewRouter()
 	r.Path(p.Path).Handler(promhttp.Handler()).Methods(http.MethodGet)
-	return p.BaseServer.initialize(r)
+	return p.HTTPServer.initialize(r)
 }
 
 var (
+	// DefBuckets contains the default buckets for the Duration histogram metric
 	DefBuckets = []float64{.001, .01, .1, 1, 10}
 )
 
-// Metrics contains the metrics that need to be captured while serving HTTP requests. If these are not provided then
+// Metrics contains the metrics that will be captured while serving HTTP requests. If these are not provided then
 // Server will create default metrics and register them with Prometheus' default registry.
 type Metrics struct {
-	RequestCounter    *prometheus.CounterVec
+	// RequestCounter records the number of times a handler was called. This is a prometheus.CounterVec with three labels: "method", "path" and "code".
+	// By default, a metric called "http_requests_totals" will be used
+	RequestCounter *prometheus.CounterVec
+	// DurationHistogram records the latency of each handler call. This is a prometheus.HistogramVec with two labels: "method" and "path".
+	// By default, a metric called "http_requests_duration_seconds" will be used, with DefBuckets as the histogram's buckets.
 	DurationHistogram *prometheus.HistogramVec
 }
 
@@ -55,27 +60,29 @@ func (m *Metrics) initialize(name string) {
 	prometheus.DefaultRegisterer.MustRegister(m.RequestCounter, m.DurationHistogram)
 }
 
-func (m *Metrics) Handle(next http.Handler) http.Handler {
-	return InstrumentHandlerCounter(m.RequestCounter,
-		InstrumentHandlerDuration(m.DurationHistogram,
+func (m *Metrics) handle(next http.Handler) http.Handler {
+	return instrumentHandlerCounter(m.RequestCounter,
+		instrumentHandlerDuration(m.DurationHistogram,
 			next,
 		),
 	)
 }
 
-func InstrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
+func instrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 		next.ServeHTTP(lrw, r)
+		route := mux.CurrentRoute(r)
+		path, _ := route.GetPathTemplate()
 		counter.With(prometheus.Labels{
 			"method": strings.ToLower(r.Method),
-			"path":   r.URL.Path,
+			"path":   path,
 			"code":   strconv.Itoa(lrw.statusCode),
 		}).Inc()
 	}
 }
 
-func InstrumentHandlerDuration(histogram *prometheus.HistogramVec, next http.Handler) http.HandlerFunc {
+func instrumentHandlerDuration(histogram *prometheus.HistogramVec, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
@@ -88,8 +95,6 @@ func InstrumentHandlerDuration(histogram *prometheus.HistogramVec, next http.Han
 	}
 }
 
-// loggingResponseWriter records the HTTP status code of a ResponseWriter, so we can use it to log response times for
-// individual status codes.
 type loggingResponseWriter struct {
 	http.ResponseWriter
 	wroteHeader bool

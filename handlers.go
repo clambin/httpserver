@@ -5,10 +5,10 @@ import (
 	"net/http"
 )
 
-// ApplicationServer contains the configuration items for an HTTP Server
-type ApplicationServer struct {
+// Application runs an HTTP Server for one or more application Handlers
+type Application struct {
 	Handlers []Handler
-	BaseServer
+	HTTPServer
 }
 
 // Handler contains an endpoint to be registered in the Server's HTTP server, using NewWithHandlers.
@@ -21,12 +21,12 @@ type Handler struct {
 	Methods []string
 }
 
-func (s *ApplicationServer) initialize(metrics Metrics) (err error) {
+func (s *Application) initialize(metrics Metrics) (err error) {
 	if len(s.Handlers) == 0 {
 		return
 	}
 	r := mux.NewRouter()
-	r.Use(metrics.Handle)
+	r.Use(metrics.handle)
 	for _, h := range s.Handlers {
 		methods := h.Methods
 		if len(methods) == 0 {
@@ -34,5 +34,5 @@ func (s *ApplicationServer) initialize(metrics Metrics) (err error) {
 		}
 		r.Path(h.Path).Handler(h.Handler).Methods(methods...)
 	}
-	return s.BaseServer.initialize(r)
+	return s.HTTPServer.initialize(r)
 }
