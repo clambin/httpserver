@@ -13,6 +13,7 @@ type Prometheus struct {
 	httpServer
 }
 
+// Run starts the HTTP Server
 func (p *Prometheus) Run() error {
 	if p.Path == "" {
 		p.Path = "/metrics"

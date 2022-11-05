@@ -19,7 +19,7 @@ type Application struct {
 	httpServer
 }
 
-// Handler contains an endpoint to be registered in the Server's HTTP server, using NewWithHandlers.
+// Handler contains an endpoint to be registered in the Server's HTTP server
 type Handler struct {
 	// Path of the endpoint (e.g. "/health"). Must include the leading /
 	Path string
@@ -29,6 +29,7 @@ type Handler struct {
 	Methods []string
 }
 
+// Run starts the HTTP Server
 func (a *Application) Run() error {
 	a.Metrics.initialize(a.Name)
 	r := mux.NewRouter()

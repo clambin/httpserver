@@ -4,8 +4,7 @@ import (
 	"time"
 )
 
-// Server runs a Prometheus metrics server. If Application contains one or more Handlers, it will also run an HTTP server
-// for those handlers. The two HTTP servers use different TCP ports.
+// Server combines a Prometheus metrics server with an Application server. Both servers need to be using different TCP ports.
 type Server struct {
 	Application
 	Prometheus
