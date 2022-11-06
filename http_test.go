@@ -47,3 +47,28 @@ func TestHttpServer_Run_BadPort(t *testing.T) {
 	err := s.Run(-1, h)
 	assert.Error(t, err)
 }
+
+func TestHttpServer_Duplicate_Port(t *testing.T) {
+	s1 := httpServer{}
+	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("OK"))
+	})
+	go func() {
+		_ = s1.Run(8889, h)
+	}()
+
+	assert.Eventually(t, func() bool {
+		resp, err := http.Get("http://127.0.0.1:8889/")
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}, time.Second, 100*time.Millisecond)
+
+	s2 := httpServer{}
+	err := s2.Run(8889, h)
+	assert.Error(t, err)
+
+	_ = s1.Shutdown(time.Minute)
+}

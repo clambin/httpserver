@@ -42,6 +42,8 @@ func (s *httpServer) initialize(port int, r http.Handler) (err error) {
 
 // Shutdown performs a graceful shutdown of the HTTP Server
 func (s *httpServer) Shutdown(timeout time.Duration) (err error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
 	if s.server != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
