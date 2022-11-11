@@ -3,46 +3,11 @@ package httpserver
 import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
-
-// Application runs an HTTP Server for one or more application Handlers
-type Application struct {
-	Name     string
-	Port     int
-	Handlers []Handler
-	Metrics
-	httpServer
-}
-
-// Handler contains an endpoint to be registered in the Server's HTTP server
-type Handler struct {
-	// Path of the endpoint (e.g. "/health"). Must include the leading /
-	Path string
-	// Handler that implements the endpoint
-	Handler http.Handler
-	// Methods that the handler should support. If empty, http.MethodGet is the default
-	Methods []string
-}
-
-// Run starts the HTTP Server
-func (a *Application) Run() error {
-	a.Metrics.initialize(a.Name)
-	r := mux.NewRouter()
-	r.Use(a.Metrics.handle)
-	for _, h := range a.Handlers {
-		methods := h.Methods
-		if len(methods) == 0 {
-			methods = []string{http.MethodGet}
-		}
-		r.Path(h.Path).Handler(h.Handler).Methods(methods...)
-	}
-	return a.httpServer.Run(a.Port, r)
-}
 
 var (
 	// DefBuckets contains the default buckets for the Duration histogram metric
@@ -60,23 +25,24 @@ type Metrics struct {
 	DurationHistogram *prometheus.HistogramVec
 }
 
-func (m *Metrics) initialize(name string) {
-	if m.RequestCounter == nil {
-		m.RequestCounter = promauto.NewCounterVec(prometheus.CounterOpts{
-			Name:        "http_requests_total",
-			Help:        "Total number of http requests",
-			ConstLabels: prometheus.Labels{"handler": name},
-		}, []string{"method", "path", "code"})
+func NewMetrics(name string) *Metrics {
+	m := new(Metrics)
+	m.RequestCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:        "http_requests_total",
+		Help:        "Total number of http requests",
+		ConstLabels: prometheus.Labels{"handler": name},
+	}, []string{"method", "path", "code"})
+	m.DurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:        "http_requests_duration_seconds",
+		Help:        "Request duration in seconds",
+		ConstLabels: prometheus.Labels{"handler": name},
+		Buckets:     DefBuckets,
+	}, []string{"method", "path"})
+	return m
+}
 
-	}
-	if m.DurationHistogram == nil {
-		m.DurationHistogram = promauto.NewHistogramVec(prometheus.HistogramOpts{
-			Name:        "http_requests_duration_seconds",
-			Help:        "Request duration in seconds",
-			ConstLabels: prometheus.Labels{"handler": name},
-			Buckets:     DefBuckets,
-		}, []string{"method", "path"})
-	}
+func (m *Metrics) Register(r prometheus.Registerer) {
+	r.MustRegister(m.RequestCounter, m.DurationHistogram)
 }
 
 func (m *Metrics) handle(next http.Handler) http.Handler {
