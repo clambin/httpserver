@@ -9,11 +9,6 @@ import (
 	"time"
 )
 
-var (
-	// DefBuckets contains the default buckets for the Duration histogram metric
-	DefBuckets = []float64{.001, .01, .1, 1, 10}
-)
-
 // Metrics contains the metrics that will be captured while serving HTTP requests. If these are not provided then
 // Server will create default metrics and register them with Prometheus' default registry.
 type Metrics struct {
@@ -36,7 +31,7 @@ func NewMetrics(name string) *Metrics {
 			Name:        "http_requests_duration_seconds",
 			Help:        "Request duration in seconds",
 			ConstLabels: prometheus.Labels{"handler": name},
-			Buckets:     DefBuckets,
+			Buckets:     prometheus.DefBuckets,
 		}, []string{"method", "path"}),
 	}
 }
