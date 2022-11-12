@@ -74,3 +74,8 @@ func (s *Server) Shutdown(timeout time.Duration) error {
 func (s *Server) GetPort() int {
 	return s.listener.Addr().(*net.TCPAddr).Port
 }
+
+// ServeHTTP
+func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	s.server.Handler.ServeHTTP(w, req)
+}
