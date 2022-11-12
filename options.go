@@ -8,7 +8,7 @@ import (
 
 // Option specified configuration options for Server
 type Option interface {
-	Apply(server *Server)
+	apply(server *Server)
 }
 
 // WithPort specifies the Server's listening port. If no port is specified, Server will listen on a random port.
@@ -17,7 +17,7 @@ type WithPort struct {
 	Port int
 }
 
-func (o WithPort) Apply(s *Server) {
+func (o WithPort) apply(s *Server) {
 	s.port = o.Port
 }
 
@@ -26,7 +26,7 @@ type WithPrometheus struct {
 	Path string
 }
 
-func (o WithPrometheus) Apply(s *Server) {
+func (o WithPrometheus) apply(s *Server) {
 	if o.Path == "" {
 		o.Path = "/metrics"
 	}
@@ -42,7 +42,7 @@ type WithHandlers struct {
 	Handlers []Handler
 }
 
-func (o WithHandlers) Apply(s *Server) {
+func (o WithHandlers) apply(s *Server) {
 	s.handlers = append(s.handlers, o.Handlers...)
 }
 
@@ -51,7 +51,7 @@ type WithMetrics struct {
 	Metrics *Metrics
 }
 
-func (o WithMetrics) Apply(s *Server) {
+func (o WithMetrics) apply(s *Server) {
 	if o.Metrics == nil {
 		o.Metrics = NewMetrics("default")
 		o.Metrics.Register(prometheus.DefaultRegisterer)

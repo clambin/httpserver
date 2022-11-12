@@ -32,7 +32,7 @@ type Handler struct {
 func New(options ...Option) (s *Server, err error) {
 	s = new(Server)
 	for _, o := range options {
-		o.Apply(s)
+		o.apply(s)
 	}
 
 	s.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", s.port))

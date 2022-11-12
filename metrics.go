@@ -26,19 +26,19 @@ type Metrics struct {
 }
 
 func NewMetrics(name string) *Metrics {
-	m := new(Metrics)
-	m.RequestCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name:        "http_requests_total",
-		Help:        "Total number of http requests",
-		ConstLabels: prometheus.Labels{"handler": name},
-	}, []string{"method", "path", "code"})
-	m.DurationHistogram = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:        "http_requests_duration_seconds",
-		Help:        "Request duration in seconds",
-		ConstLabels: prometheus.Labels{"handler": name},
-		Buckets:     DefBuckets,
-	}, []string{"method", "path"})
-	return m
+	return &Metrics{
+		RequestCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "http_requests_total",
+			Help:        "Total number of http requests",
+			ConstLabels: prometheus.Labels{"handler": name},
+		}, []string{"method", "path", "code"}),
+		DurationHistogram: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        "http_requests_duration_seconds",
+			Help:        "Request duration in seconds",
+			ConstLabels: prometheus.Labels{"handler": name},
+			Buckets:     DefBuckets,
+		}, []string{"method", "path"}),
+	}
 }
 
 func (m *Metrics) Register(r prometheus.Registerer) {
