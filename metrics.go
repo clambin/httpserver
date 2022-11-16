@@ -1,17 +1,20 @@
 package httpserver
 
 import (
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
-	"net/http"
 	"strconv"
 	"strings"
-	"time"
 )
 
-// Metrics contains the metrics that will be captured while serving HTTP requests. If these are not provided then
-// Server will create default metrics and register them with Prometheus' default registry.
-type Metrics struct {
+// Metrics interface contains the methods httpserver's middleware expects to record performance metrics
+type Metrics interface {
+	GetRequestDurationMetric(method, path string) prometheus.Observer
+	GetRequestCountMetric(method, path string, statusCode int) prometheus.Counter
+}
+
+// SLOMetrics uses a histogram to record request duration metrics. Use this to measure an SLO (e.g. 95% of all requests must be serviced below x seconds).
+// SLOMetrics uses Prometheus' default buckets.
+type SLOMetrics struct {
 	// RequestCounter records the number of times a handler was called. This is a prometheus.CounterVec with three labels: "method", "path" and "code".
 	// By default, a metric called "http_requests_totals" will be used
 	RequestCounter *prometheus.CounterVec
@@ -20,8 +23,19 @@ type Metrics struct {
 	DurationHistogram *prometheus.HistogramVec
 }
 
-func NewMetrics(name string) *Metrics {
-	return &Metrics{
+var _ Metrics = &SLOMetrics{}
+
+// NewSLOMetrics creates a new SLOMetrics and registers it with the provided prometheus.Registerer. If no registerer is provided,
+// the metrics will be registered with prometheus.DefaultRegisterer.
+// NewSLOMetrics uses the standard prometheus default buckets (prometheus.DefBuckets). To override the default buckets, use NewSLOMetricsWithBuckets().
+func NewSLOMetrics(name string, r prometheus.Registerer) Metrics {
+	return NewSLOMetricsWithBuckets(name, prometheus.DefBuckets, r)
+}
+
+// NewSLOMetricsWithBuckets creates a new SLOMetrics with the specified buckets and registers it with the provided prometheus.Registerer. If no registerer is provided,
+// the metrics will be registered with prometheus.DefaultRegisterer.
+func NewSLOMetricsWithBuckets(name string, buckets []float64, r prometheus.Registerer) Metrics {
+	metrics := &SLOMetrics{
 		RequestCounter: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name:        "http_requests_total",
 			Help:        "Total number of http requests",
@@ -31,67 +45,81 @@ func NewMetrics(name string) *Metrics {
 			Name:        "http_requests_duration_seconds",
 			Help:        "Request duration in seconds",
 			ConstLabels: prometheus.Labels{"handler": name},
-			Buckets:     prometheus.DefBuckets,
+			Buckets:     buckets,
 		}, []string{"method", "path"}),
 	}
-}
-
-func (m *Metrics) Register(r prometheus.Registerer) {
-	r.MustRegister(m.RequestCounter, m.DurationHistogram)
-}
-
-func (m *Metrics) handle(next http.Handler) http.Handler {
-	return instrumentHandlerCounter(m.RequestCounter,
-		instrumentHandlerDuration(m.DurationHistogram,
-			next,
-		),
-	)
-}
-
-func instrumentHandlerCounter(counter *prometheus.CounterVec, next http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		lrw := &loggingResponseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-		next.ServeHTTP(lrw, r)
-		route := mux.CurrentRoute(r)
-		path, _ := route.GetPathTemplate()
-		counter.With(prometheus.Labels{
-			"method": strings.ToLower(r.Method),
-			"path":   path,
-			"code":   strconv.Itoa(lrw.statusCode),
-		}).Inc()
+	if r == nil {
+		r = prometheus.DefaultRegisterer
 	}
+	r.MustRegister(metrics.RequestCounter, metrics.DurationHistogram)
+
+	return metrics
+
 }
 
-func instrumentHandlerDuration(histogram *prometheus.HistogramVec, next http.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		route := mux.CurrentRoute(r)
-		path, _ := route.GetPathTemplate()
-		histogram.With(prometheus.Labels{
-			"method": strings.ToLower(r.Method),
-			"path":   path,
-		}).Observe(time.Since(start).Seconds())
+// GetRequestDurationMetric returns the Observer to record request duration
+func (m *SLOMetrics) GetRequestDurationMetric(method, path string) prometheus.Observer {
+	return m.DurationHistogram.With(prometheus.Labels{
+		"method": strings.ToLower(method),
+		"path":   path,
+	})
+}
+
+// GetRequestCountMetric returns the Counter to record request count
+func (m *SLOMetrics) GetRequestCountMetric(method, path string, statusCode int) prometheus.Counter {
+	return m.RequestCounter.With(prometheus.Labels{
+		"method": strings.ToLower(method),
+		"path":   path,
+		"code":   strconv.Itoa(statusCode),
+	})
+}
+
+// AvgMetrics uses a Summary to record request duration metrics. Use this if you are only interested in the average time to service requests.
+type AvgMetrics struct {
+	// Requests records the number of times a handler was called. This is a prometheus.CounterVec with three labels: "method", "path" and "code".
+	Requests *prometheus.CounterVec
+	// Duration records the latency of each handler call. This is a prometheus.HistogramVec with two labels: "method" and "path".
+	Duration *prometheus.SummaryVec
+}
+
+var _ Metrics = &AvgMetrics{}
+
+// NewAvgMetrics creates a new AvgMetrics and registers it with the provided prometheus.Registerer. If no registerer is provided,
+// the metrics will be registered with prometheus.DefaultRegisterer.
+func NewAvgMetrics(name string, r prometheus.Registerer) Metrics {
+	metrics := &AvgMetrics{
+		Requests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        "http_requests_total",
+			Help:        "Total number of http requests",
+			ConstLabels: prometheus.Labels{"handler": name},
+		}, []string{"method", "path", "code"}),
+		Duration: prometheus.NewSummaryVec(prometheus.SummaryOpts{
+			Name:        "http_requests_duration_seconds",
+			Help:        "Request duration in seconds",
+			ConstLabels: prometheus.Labels{"handler": name},
+		}, []string{"method", "path"}),
 	}
-}
-
-type loggingResponseWriter struct {
-	http.ResponseWriter
-	wroteHeader bool
-	statusCode  int
-}
-
-// WriteHeader implements the http.ResponseWriter interface.
-func (w *loggingResponseWriter) WriteHeader(code int) {
-	w.ResponseWriter.WriteHeader(code)
-	w.statusCode = code
-	w.wroteHeader = true
-}
-
-// Write implements the http.ResponseWriter interface.
-func (w *loggingResponseWriter) Write(body []byte) (int, error) {
-	if !w.wroteHeader {
-		w.WriteHeader(http.StatusOK)
+	if r == nil {
+		r = prometheus.DefaultRegisterer
 	}
-	return w.ResponseWriter.Write(body)
+	r.MustRegister(metrics.Requests, metrics.Duration)
+
+	return metrics
+}
+
+// GetRequestDurationMetric returns the Observer to record request duration
+func (m *AvgMetrics) GetRequestDurationMetric(method, path string) prometheus.Observer {
+	return m.Duration.With(prometheus.Labels{
+		"method": strings.ToLower(method),
+		"path":   path,
+	})
+}
+
+// GetRequestCountMetric returns the Counter to record request count
+func (m *AvgMetrics) GetRequestCountMetric(method, path string, statusCode int) prometheus.Counter {
+	return m.Requests.With(prometheus.Labels{
+		"method": strings.ToLower(method),
+		"path":   path,
+		"code":   strconv.Itoa(statusCode),
+	})
 }

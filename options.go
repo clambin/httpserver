@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 )
@@ -48,13 +47,12 @@ func (o WithHandlers) apply(s *Server) {
 
 // WithMetrics will collect the specified metrics to instrument the Server's Handlers.
 type WithMetrics struct {
-	Metrics *Metrics
+	Metrics Metrics
 }
 
 func (o WithMetrics) apply(s *Server) {
 	if o.Metrics == nil {
-		o.Metrics = NewMetrics("default")
-		o.Metrics.Register(prometheus.DefaultRegisterer)
+		o.Metrics = NewSLOMetrics("default", nil)
 	}
 	s.metrics = o.Metrics
 }
