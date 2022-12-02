@@ -145,19 +145,19 @@ func TestServer_Run_BadPort(t *testing.T) {
 func TestServer_Run_WithMetrics(t *testing.T) {
 	testCases := []struct {
 		name         string
-		metrics      func(name string, r prometheus.Registerer) httpserver.Metrics
+		metrics      func() httpserver.Metrics
 		evalCount    func(t *testing.T, r prometheus.Gatherer)
 		evalDuration func(t *testing.T, r prometheus.Gatherer)
 	}{
 		{
 			name:         "SLOMetrics",
-			metrics:      httpserver.NewSLOMetrics,
+			metrics:      func() httpserver.Metrics { return httpserver.NewSLOMetrics("foobar", nil) },
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationHistogram,
 		},
 		{
 			name:         "AvgMetrics",
-			metrics:      httpserver.NewAvgMetrics,
+			metrics:      func() httpserver.Metrics { return httpserver.NewAvgMetrics("foobar") },
 			evalCount:    evalRequestsCounter,
 			evalDuration: evalDurationSummary,
 		},
@@ -167,6 +167,8 @@ func TestServer_Run_WithMetrics(t *testing.T) {
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			r := prometheus.NewRegistry()
+			m := tt.metrics()
+			r.MustRegister(m)
 			s, err := httpserver.New(
 				httpserver.WithHandlers{Handlers: []httpserver.Handler{{
 					Path: "/foo",
@@ -174,15 +176,13 @@ func TestServer_Run_WithMetrics(t *testing.T) {
 						_, _ = w.Write([]byte("OK"))
 					}),
 				}}},
-				httpserver.WithMetrics{Metrics: tt.metrics("foobar", r)},
+				httpserver.WithMetrics{Metrics: m},
 			)
 			require.NoError(t, err)
 
 			wg.Add(1)
-			go func() {
-				_ = s.Run()
-				wg.Done()
-			}()
+			go func() { defer wg.Done(); _ = s.Run() }()
+
 			assert.Eventually(t, func() bool {
 				return testHandler(nil, s, endpoint{
 					path:   "/foo",
